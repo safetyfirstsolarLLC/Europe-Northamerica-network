@@ -1,7 +1,7 @@
 name: Render IG Reel Video
 
 on:
-  workflow_dispatch:
+  workflow_dispatch: # Allows manual trigger or API calls
 
 # Give the workflow permission to write/push commits back to the repo
 permissions:
@@ -15,29 +15,33 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          fetch-depth: 0 # Required for git history and clean pushing
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.10'
 
-      - name: Install FFmpeg & Python Dependencies
+      - name: Install System Dependencies (FFmpeg & Fonts)
         run: |
           sudo apt-get update
           sudo apt-get install -y ffmpeg fonts-dejavu
-          pip install "moviepy==1.0.3" gTTS requests Pillow
 
-      - name: Render Video File
+      - name: Install Python Rendering Pipeline
+        run: |
+          pip install --upgrade pip
+          # rembg installs pillow, numpy, and onnxruntime automatically
+          pip install "moviepy==1.0.3" gTTS requests rembg onnxruntime
+
+      - name: Execute Render Script
         run: |
           python render_script.py
 
-      - name: Commit and Push Video
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Commit and Push Rendered Video
+        # Check permissions settings first if this step fails (exit code 128)
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git add assets/ig-media/
-          git commit -m "Auto-rendered Reel MP4" || echo "No changes to commit"
+          git commit -m "Auto-rendered Transparent Spinning Reel MP4" || echo "No changes to commit"
           git push origin main
