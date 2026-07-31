@@ -1,35 +1,65 @@
 import os
+import glob
+import random
 import requests
 from gtts import gTTS
-from moviepy.editor import ImageClip, AudioFileClip, TextClip, CompositeVideoClip
+from moviepy import ImageClip, AudioFileClip, TextClip, CompositeVideoClip, concatenate_videoclips
 
 # Ensure output directory exists
 os.makedirs("assets/ig-media", exist_ok=True)
 
-IMAGE_URL = "https://raw.githubusercontent.com/safetyfirstsolarLLC/Europe-Northamerica-network/main/assets/ig-media/spongebob1%20.jpg"
-LOCAL_IMG = "product_temp.jpg"
 LOCAL_AUDIO = "voiceover.mp3"
 OUTPUT_VIDEO = "assets/ig-media/spongebob_reel1.mp4"
 
-# 1. Download image
-r = requests.get(IMAGE_URL)
-with open(LOCAL_IMG, 'wb') as f:
-    f.write(r.content)
+# 1. Grab all image files inside your GitHub media folder
+image_files = glob.glob("assets/ig-media/*.jpg") + glob.glob("assets/ig-media/*.png")
 
-# 2. Generate AI Voiceover
-voice_text = "Stop buying plain socks! Grab your limited edition SpongeBob 3D streetwear socks today. Link in bio!"
+# If no images are found locally yet, download a fallback
+if not image_files:
+    fallback_url = "https://raw.githubusercontent.com/safetyfirstsolarLLC/Europe-Northamerica-network/main/assets/ig-media/spongebob1%20.jpg"
+    r = requests.get(fallback_url)
+    with open("assets/ig-media/temp.jpg", 'wb') as f:
+        f.write(r.content)
+    image_files = ["assets/ig-media/temp.jpg"]
+
+# 2. Pick a random script to keep videos fresh
+SCRIPTS = [
+    "Stop buying plain socks! Grab your limited edition SpongeBob 3D streetwear socks today. Link in bio!",
+    "Why pay $40 for basic socks when you can rock 3D SpongeBob drip? Grab yours before we sell out!",
+    "Nostalgia on your feet. Upgrade your streetwear game today. Click the link in bio to shop now!"
+]
+voice_text = random.choice(SCRIPTS)
+
+# Generate AI Voiceover
 tts = gTTS(text=voice_text, lang='en', slow=False)
 tts.save(LOCAL_AUDIO)
-
-# 3. Stitch 9:16 HD Reel Video
 audio_clip = AudioFileClip(LOCAL_AUDIO)
-duration = audio_clip.duration + 1.5
+total_duration = audio_clip.duration + 1.0
 
-image_clip = ImageClip(LOCAL_IMG).set_duration(duration).resize((1080, 1920))
-txt_clip = TextClip("SPONGEBOB STREETWEAR 🧽🔥\nLINK IN BIO!", fontsize=55, color='yellow', font='Arial-Bold')
-txt_clip = txt_clip.set_position(('center', 1450)).set_duration(duration)
+# 3. Build a Multi-Image Cut (Changes picture every 2–3 seconds)
+num_images = min(len(image_files), 3) # Pick up to 3 images
+selected_imgs = random.sample(image_files, num_images)
+img_duration = total_duration / num_images
 
-video = CompositeVideoClip([image_clip, txt_clip]).set_audio(audio_clip)
-video.write_videofile(OUTPUT_VIDEO, fps=24, codec='libx264', audio_codec='aac')
+image_clips = []
+for img_path in selected_imgs:
+    # Resize each image to 9:16 vertical Reel format (1080x1920)
+    clip = ImageClip(img_path).with_duration(img_duration).resized((1080, 1920))
+    image_clips.append(clip)
 
-print(f"✅ Video successfully created in cloud: {OUTPUT_VIDEO}")
+# Stitch the images into a sequence
+background_video = concatenate_videoclips(image_clips)
+
+# 4. Add Bold Dynamic Text Overlay
+txt_clip = TextClip(
+    font="Arial.ttf", 
+    text="SPONGEBOB STREETWEAR 🧽🔥\nLINK IN BIO!", 
+    font_size=55, 
+    color='yellow'
+).with_position(('center', 1450)).with_duration(total_duration)
+
+# 5. Composite Final Video & Audio
+final_video = CompositeVideoClip([background_video, txt_clip]).with_audio(audio_clip)
+final_video.write_videofile(OUTPUT_VIDEO, fps=24, codec='libx264', audio_codec='aac')
+
+print(f"✅ Dynamic video created: {OUTPUT_VIDEO}")
