@@ -1,7 +1,7 @@
 name: Render IG Reel Video
 
 on:
-  workflow_dispatch: # Allows manual trigger or API calls
+  workflow_dispatch:
 
 jobs:
   render:
@@ -16,19 +16,19 @@ jobs:
         with:
           python-version: '3.10'
 
-      - name: Install FFmpeg & ImageMagick (Fix for MoviePy TextClip)
+      - name: Install FFmpeg, ImageMagick & Fonts
         run: |
           sudo apt-get update
-          sudo apt-get install -y ffmpeg imagemagick
-          # Modify ImageMagick security policy to allow TextClip label rendering
-          sudo sed -i 's/domain="path" rights="none" pattern="@\*"/domain="path" rights="read|write" pattern="@\*"/g' /etc/ImageMagick-6/policy.xml || true
-          pip install "moviepy==1.0.3" gTTS requests
+          sudo apt-get install -y ffmpeg imagemagick fonts-dejavu
+          # Fix ImageMagick policy permission restriction for text rendering
+          sudo sed -i 's/rights="none" pattern="@\*"/rights="read|write" pattern="@\*"/g' /etc/ImageMagick-6/policy.xml || true
+          pip install "moviepy==1.0.3" gTTS requests Pillow
 
       - name: Render Video File
         run: |
           python render_script.py
 
-      - name: Commit and Push Video back to Repo
+      - name: Commit and Push Video
         run: |
           git config --global user.name "GitHub Cloud Renderer"
           git config --global user.email "renderer@github.com"
