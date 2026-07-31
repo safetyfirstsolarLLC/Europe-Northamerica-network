@@ -1,0 +1,34 @@
+name: Render IG Reel Video
+
+on:
+  workflow_dispatch: # Allows manual trigger or API calls
+
+jobs:
+  render:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install FFmpeg & Python Dependencies
+        run: |
+          sudo apt-get update && sudo apt-get install -y ffmpeg
+          pip install moviepy gTTS requests
+
+      - name: Render Video File
+        run: |
+          python render_script.py
+
+      - name: Commit and Push Video back to Repo
+        run: |
+          git config --global user.name "GitHub Cloud Renderer"
+          git config --global user.email "renderer@github.com"
+          git add assets/ig-media/
+          git commit -m "Auto-rendered Reel MP4" || exit 0
+          git push
