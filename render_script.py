@@ -4,135 +4,182 @@ import requests
 import numpy as np
 from gtts import gTTS
 from PIL import Image, ImageDraw, ImageFont
-from moviepy.editor import VideoClip, AudioFileClip
+from moviepy.editor import VideoClip, AudioFileClip, AudioArrayClip, CompositeAudioClip
+from moviepy.audio.fx.all import speedx
 
-# Only import rembg here to prevent startup delay if needed elsewhere
 try:
     from rembg import remove
 except ImportError:
-    print("⚠️ 'rembg' library not found. Background removal will be skipped.")
     remove = None
 
 os.makedirs("assets/ig-media", exist_ok=True)
 
-# Sources and Output
+# Sources & Output
 IMAGE_URL = "https://raw.githubusercontent.com/safetyfirstsolarLLC/Europe-Northamerica-network/main/assets/ig-media/spongebob1%20.jpg"
 TEMP_RAW_IMG = "raw_input_product.jpg"
-LOCAL_AUDIO = "voiceover.mp3"
+LOCAL_AUDIO_TTS = "voiceover_raw.mp3"
 OUTPUT_VIDEO = "assets/ig-media/spongebob_reel1.mp4"
 
 # ==========================================
-# 1. Prepare Product Asset (Download & Transparent Cutout)
+# 1. DOWNLOAD PRODUCT & AUTO-REMOVE BACKGROUND
 # ==========================================
-print("--- Preparing product asset... ---")
-
-# A. Download raw image
+print("--- 1. Downloading product image & stripping background... ---")
 r = requests.get(IMAGE_URL)
 with open(TEMP_RAW_IMG, 'wb') as f:
     f.write(r.content)
 
-# B. Automatic Background Removal using rembg
 if remove:
-    print("--- Automatically removing background... ---")
     with open(TEMP_RAW_IMG, 'rb') as i:
-        input_data = i.read()
-        # Create a transparent PNG output directly in memory
-        output_data = remove(input_data)
+        output_data = remove(i.read())
         product_img = Image.open(io.BytesIO(output_data)).convert("RGBA")
 else:
-    # Fallback if library missing (wont happen in configured workflow)
-    print("--- Using raw image (no background removal)... ---")
     product_img = Image.open(TEMP_RAW_IMG).convert("RGBA")
 
-# Ensure product img is roughly square for clean rotation before animation starts
-prod_w, prod_h = product_img.size
-max_dim = max(prod_w, prod_h)
-background = Image.new("RGBA", (max_dim, max_dim), (0, 0, 0, 0))
-offset = ((max_dim - prod_w) // 2, (max_dim - prod_h) // 2)
-background.paste(product_img, offset, product_img)
-product_core = background
+# Make square box around cutout
+p_w, p_h = product_img.size
+max_d = max(p_w, p_h)
+square_bg = Image.new("RGBA", (max_d, max_d), (0, 0, 0, 0))
+square_bg.paste(product_img, ((max_d - p_w) // 2, (max_d - p_h) // 2), product_img)
+product_core = square_bg
 
 # ==========================================
-# 2. Generate Voiceover Audio
+# 2. SPUNKY CHILDLIKE VOICE & TECHNO MUSIC GENERATOR
 # ==========================================
-print("--- Generating AI voiceover... ---")
+print("--- 2. Creating voiceover & procedural techno track... ---")
+
+# A. Generate Voiceover
 voice_text = "Stop buying plain socks! Grab your limited edition SpongeBob 3D streetwear socks today. Link in bio!"
-tts = gTTS(text=voice_text, lang='en', slow=False)
-tts.save(LOCAL_AUDIO)
-audio_clip = AudioFileClip(LOCAL_AUDIO)
-duration = audio_clip.duration + 1.5 # Extra time for visual effect
+tts = gTTS(text=voice_text, lang='en', tld='co.uk', slow=False)
+tts.save(LOCAL_AUDIO_TTS)
+
+# Pitch-shift / Speed-up voice (1.28x) to make it spunky and childlike
+raw_voice_clip = AudioFileClip(LOCAL_AUDIO_TTS)
+spunky_voice = raw_voice_clip.fx(speedx, 1.28)
+total_duration = spunky_voice.duration + 1.2
+
+# B. Generate 100% Royalty-Free Techno Beat in Numpy (128 BPM)
+sample_rate = 44100
+t_audio = np.linspace(0, total_duration, int(sample_rate * total_duration), False)
+
+# 128 BPM Kick drum synth pulse
+bpm = 128
+beat_freq = bpm / 60.0
+kick_env = np.exp(-12 * ((t_audio * beat_freq) % 1.0))
+kick_wave = np.sin(2 * np.pi * (60 + 120 * kick_env) * t_audio) * kick_env
+
+# Upbeat Techno Synth Arpeggio
+synth_freqs = [261.63, 311.13, 392.00, 466.16] # C minor chord
+note_index = (t_audio * beat_freq * 4).astype(int) % len(synth_freqs)
+current_freqs = np.array([synth_freqs[i] for i in note_index])
+synth_env = np.exp(-8 * ((t_audio * beat_freq * 4) % 1.0))
+synth_wave = np.sin(2 * np.pi * current_freqs * t_audio) * synth_env * 0.25
+
+# Combine kick + synth beat
+techno_audio = (kick_wave * 0.4 + synth_wave * 0.3)
+techno_stereo = np.vstack([techno_audio, techno_audio]).T
+
+techno_music_clip = AudioArrayClip(techno_stereo, fps=sample_rate).set_duration(total_duration)
+
+# Mix Voice (loud) + Techno (background)
+final_audio = CompositeAudioClip([spunky_voice.volumex(1.4), techno_music_clip.volumex(0.35)])
 
 # ==========================================
-# 3. Procedural Animated Frame Generator (9:16)
+# 3. HYPNOTIC RAINBOW & POPUP TEXT GENERATOR
 # ==========================================
-print("--- Starting render of animated frames... ---")
+print("--- 3. Rendering video frames... ---")
+
+# Precompute grid for fast Hypnotic Rainbow calculations
+h_res, w_res = 480, 270 # Low-res math buffer scaled to 1080x1920
+y_idx, x_idx = np.ogrid[-h_res//2:h_res//2, -w_res//2:w_res//2]
+r_grid = np.sqrt(x_idx**2 + y_idx**2)
+theta_grid = np.arctan2(y_idx, x_idx)
 
 def make_frame(t):
-    # Canvas setup (9:16 vertical Reel 1080x1920) with a dark gradient/color background
-    canvas = Image.new("RGBA", (1080, 1920), (18, 18, 24, 255))
+    # A. Generate Hypnotic Rainbow Spiral Background
+    hue = (theta_grid / (2 * np.pi) + r_grid * 0.02 - t * 0.8) % 1.0
+    sat = np.ones_like(hue) * 0.95
+    val = np.ones_like(hue) * 0.90
     
-    # --- ANIMATION CALCULATIONS ---
-    # Angle: Continuous 360 rotation every 3 seconds
-    angle = (t * 120) % 360
+    # Convert HSV to RGB
+    hsv = np.stack([hue, sat, val], axis=-1)
+    rgb = (Image.fromarray((hsv * 255).astype('uint8'), mode='HSV').convert('RGB'))
+    bg_canvas = rgb.resize((1080, 1920), Image.Resampling.BILINEAR).convert("RGBA")
     
-    # Scale: Pulsing bounce effect (heartbeat)
-    scale_pulse = 1.0 + 0.08 * np.sin(2 * np.pi * t * 1.5)
+    # B. Rotating / Spinning Sock
+    angle = (t * 140) % 360
+    scale = 1.0 + 0.08 * np.sin(2 * np.pi * t * 1.5)
+    target_size = (int(620 * scale), int(620 * scale))
     
-    # Vertical Motion: Subtle float up/down
-    float_offset = 30 * np.sin(2 * np.pi * t * 0.5)
-    
-    # Base size for the cutout product inside the frame
-    base_render_size = 700 
-    target_size = (int(base_render_size * scale_pulse), int(base_render_size * scale_pulse))
-    
-    # --- PROCESS IMAGE ---
-    # Resize and Rotate the transparent cutout product
-    # Resampling LANCZOS/BICUBIC ensures high visual quality during spin
     scaled_sock = product_core.resize(target_size, Image.Resampling.LANCZOS)
     rotated_sock = scaled_sock.rotate(-angle, expand=True, resample=Image.Resampling.BICUBIC)
     
-    # Paste centered product on canvas
-    sock_w, sock_h = rotated_sock.size
-    offset = ((1080 - sock_w) // 2, (1920 - sock_h) // 2 - 100 + int(float_offset))
-    canvas.paste(rotated_sock, offset, rotated_sock)
+    # Paste Spinning Sock in Center
+    sw, sh = rotated_sock.size
+    offset = ((1080 - sw) // 2, (1920 - sh) // 2 - 80)
+    bg_canvas.paste(rotated_sock, offset, rotated_sock)
     
-    # --- ADD TEXT OVERLAYS (Hormozi Style) ---
-    draw = ImageDraw.Draw(canvas)
+    # C. Draw Dynamic Text & 45-Degree Side Popups
+    draw = ImageDraw.Draw(bg_canvas)
     try:
-        # Standard font available on default GitHub runners
-        font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 60)
-        font_cta = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 80)
+        font_main = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 68)
+        font_pop = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 75)
     except Exception:
-        font = ImageFont.load_default()
-        font_cta = font
+        font_main = ImageFont.load_default()
+        font_pop = font_main
+
+    # Constant Bottom Banner
+    text_bottom = "SPONGEBOB DRIP 🧽🔥\nGET YOURS NOW!"
+    draw.multiline_text((540, 1600), text_bottom, fill="yellow", font=font_main, anchor="mm", align="center", stroke_width=6, stroke_fill="black")
+
+    # D. 45-Degree Rotating Pop-Up Texts ("OMG!", "WOW!", "LINK IN BIO!")
+    popup_text = None
+    angle_pop = 45
+    pos_pop = (220, 450) # Left side
+
+    if 0.4 <= t < 1.6:
+        popup_text = "OMG!"
+        angle_pop = 45
+        pos_pop = (260, 500)
+    elif 1.8 <= t < 3.0:
+        popup_text = "WOW!"
+        angle_pop = -45
+        pos_pop = (820, 500)
+    elif 3.2 <= t < 4.8:
+        popup_text = "LINK IN BIO! 🔥"
+        angle_pop = 35
+        pos_pop = (540, 320)
+
+    if popup_text:
+        # Create separate transparent layer for angled text burst
+        txt_img = Image.new("RGBA", (800, 300), (0, 0, 0, 0))
+        txt_draw = ImageDraw.Draw(txt_img)
+        txt_draw.text((400, 150), popup_text, fill="cyan", font=font_pop, anchor="mm", stroke_width=7, stroke_fill="black")
         
-    text_top = "LIMITED EDITION 🧽🔥"
-    text_bottom = "SPONGEBOB DRIP SOCKS\nLINK IN BIO!"
-    
-    # Draw top dynamic text (pulsing in color)
-    g_val = int(127 + 128 * np.sin(2 * np.pi * t * 1.0)) # Pulse green component 0-255
-    draw.text((540, 300), text_top, fill=(255, 255, g_val), font=font, anchor="mm", align="center", stroke_width=4, stroke_fill="black")
-    
-    # Draw bottom yellow bold text
-    draw.multiline_text((540, 1600), text_bottom, fill="yellow", font=font_cta, anchor="mm", align="center", stroke_width=5, stroke_fill="black")
-    
-    return np.array(canvas.convert("RGB"))
+        # Pulse size
+        p_scale = 1.0 + 0.15 * np.sin(2 * np.pi * t * 3.0)
+        txt_img = txt_img.resize((int(800 * p_scale), int(300 * p_scale)), Image.Resampling.LANCZOS)
+        
+        # Rotate 45 degrees
+        txt_rotated = txt_img.rotate(angle_pop, expand=True, resample=Image.Resampling.BICUBIC)
+        rw, rh = txt_rotated.size
+        bg_canvas.paste(txt_rotated, (pos_pop[0] - rw//2, pos_pop[1] - rh//2), txt_rotated)
+
+    return np.array(bg_canvas.convert("RGB"))
 
 # ==========================================
-# 4. Composite Final Video & Export
+# 4. EXPORT FINAL VIDEO
 # ==========================================
-print("--- Stitching video & audio... ---")
-# Framerate (FPS) 24 provides smooth animation for short form reels
-animated_clip = VideoClip(make_frame, duration=duration)
-final_video = animated_clip.set_audio(audio_clip)
+print("--- 4. Exporting MP4 video... ---")
+video_clip = VideoClip(make_frame, duration=total_duration)
+final_video = video_clip.set_audio(final_audio)
 
 final_video.write_videofile(
-    OUTPUT_VIDEO, 
-    fps=24, 
-    codec='libx264', 
+    OUTPUT_VIDEO,
+    fps=24,
+    codec='libx264',
     audio_codec='aac',
-    threads=2, # Use cloud runner threads efficiently
-    preset='fast' # Speed up encoding time on cloud runners
+    threads=2,
+    preset='fast'
 )
 
-print(f"✅ Spinning, Transparent Cutout Reel Rendered Successfully: {OUTPUT_VIDEO}")
+print(f"✅ Hypnotic Techno Reel Rendered Successfully: {OUTPUT_VIDEO}")
