@@ -29,7 +29,7 @@ jobs:
       - name: Install Python Rendering Pipeline
         run: |
           pip install --upgrade pip
-          pip install "moviepy==1.0.3" requests rembg onnxruntime edge-tts numpy "Pillow<10.0.0"
+          pip install "moviepy==1.0.3" requests rembg onnxruntime edge-tts numpy pillow
 
       - name: Execute Render Script
         run: |
