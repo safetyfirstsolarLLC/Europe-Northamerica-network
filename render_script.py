@@ -7,6 +7,10 @@ import edge_tts
 from PIL import Image, ImageDraw, ImageFont
 from moviepy.editor import VideoClip, AudioFileClip, AudioArrayClip, CompositeAudioClip
 
+# Fix MoviePy 1.0.3 compatibility with Pillow 10+
+if not hasattr(Image, 'ANTIALIAS'):
+    Image.ANTIALIAS = Image.Resampling.LANCZOS
+
 try:
     from rembg import remove
 except ImportError:
