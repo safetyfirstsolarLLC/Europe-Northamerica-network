@@ -1,8 +1,9 @@
 import os
 import io
 import requests
+import asyncio
 import numpy as np
-from gtts import gTTS
+import edge_tts
 from PIL import Image, ImageDraw, ImageFont
 from moviepy.editor import VideoClip, AudioFileClip, AudioArrayClip, CompositeAudioClip
 
@@ -46,20 +47,24 @@ square_bg.paste(product_img, ((max_d - p_w) // 2, (max_d - p_h) // 2), product_i
 product_core = square_bg
 
 # ==========================================
-# 2. SPUNKY VOICE & TECHNO MUSIC GENERATOR
+# 2. NEURAL VOICE & TECHNO MUSIC GENERATOR
 # ==========================================
-print("--- 2. Creating voiceover & procedural techno track... ---")
+print("--- 2. Generating Edge-TTS Neural Voiceover & Techno Track... ---")
 
-# A. Generate Voiceover
+# A. Generate High-Quality Edge-TTS Voiceover
 voice_text = "Stop buying plain socks! Grab your limited edition SpongeBob 3D streetwear socks today. Link in bio!"
-tts = gTTS(text=voice_text, lang='en', tld='co.uk', slow=False)
-tts.save(LOCAL_AUDIO_TTS)
+VOICE = "en-US-ChristopherNeural"  # High-energy, natural male voice
 
-# Spunky Voiceover speed adjustment (Slightly faster playback rate)
+async def generate_voiceover():
+    communicate = edge_tts.Communicate(voice_text, VOICE, rate="+15%")
+    await communicate.save(LOCAL_AUDIO_TTS)
+
+# Execute Async TTS
+asyncio.run(generate_voiceover())
+
+# Load Neural Audio Clip
 raw_voice_clip = AudioFileClip(LOCAL_AUDIO_TTS)
-# Play faster by altering duration property cleanly
-spunky_voice = raw_voice_clip.fl_time(lambda t: 1.25 * t, apply_to=['audio']).set_duration(raw_voice_clip.duration / 1.25)
-total_duration = spunky_voice.duration + 1.2
+total_duration = raw_voice_clip.duration + 1.2
 
 # B. Generate 100% Royalty-Free Techno Beat in Numpy (128 BPM)
 sample_rate = 44100
@@ -85,30 +90,18 @@ techno_stereo = np.vstack([techno_mono, techno_mono]).T
 techno_music_clip = AudioArrayClip(techno_stereo, fps=sample_rate).set_duration(total_duration)
 
 # Composite Voice + Techno
-final_audio = CompositeAudioClip([spunky_voice.volumex(1.5), techno_music_clip.volumex(0.4)])
+final_audio = CompositeAudioClip([raw_voice_clip.volumex(1.5), techno_music_clip.volumex(0.35)])
 
 # ==========================================
-# 3. HYPNOTIC RAINBOW & POPUP TEXT GENERATOR
+# 3. SOLID CLEAN BACKGROUND & POPUP TEXT GENERATOR
 # ==========================================
 print("--- 3. Rendering video frames... ---")
 
-# Matrix for Hypnotic Rainbow calculations
-h_res, w_res = 320, 180
-y_idx, x_idx = np.ogrid[-h_res//2:h_res//2, -w_res//2:w_res//2]
-r_grid = np.sqrt(x_idx**2 + y_idx**2)
-theta_grid = np.arctan2(y_idx, x_idx)
-
 def make_frame(t):
-    # A. Hypnotic Rainbow Spiral Background
-    hue = (theta_grid / (2 * np.pi) + r_grid * 0.025 - t * 0.9) % 1.0
-    sat = np.ones_like(hue) * 0.95
-    val = np.ones_like(hue) * 0.90
+    # A. Solid Dark Modern Matte Background Canvas (1080x1920)
+    bg_canvas = Image.new("RGBA", (1080, 1920), (18, 18, 18, 255))
     
-    hsv = np.stack([hue, sat, val], axis=-1)
-    rgb_img = Image.fromarray((hsv * 255).astype('uint8'), mode='HSV').convert('RGB')
-    bg_canvas = rgb_img.resize((1080, 1920), Image.Resampling.BILINEAR).convert("RGBA")
-    
-    # B. Spinning Product Sock
+    # B. Spinning / Pulsing Product Item
     angle = (t * 140) % 360
     scale = 1.0 + 0.08 * np.sin(2 * np.pi * t * 1.5)
     target_size = (int(620 * scale), int(620 * scale))
@@ -120,7 +113,7 @@ def make_frame(t):
     offset = ((1080 - sw) // 2, (1920 - sh) // 2 - 80)
     bg_canvas.paste(rotated_sock, offset, rotated_sock)
     
-    # C. Main Text & 45-degree Popups
+    # C. Main Text & Dynamic Popups
     draw = ImageDraw.Draw(bg_canvas)
     try:
         font_main = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 68)
@@ -133,7 +126,7 @@ def make_frame(t):
     text_bottom = "SPONGEBOB DRIP 🧽🔥\nGET YOURS NOW!"
     draw.multiline_text((540, 1600), text_bottom, fill="yellow", font=font_main, anchor="mm", align="center", stroke_width=6, stroke_fill="black")
 
-    # D. Rotating Pop-Up Texts ("OMG!", "WOW!", "LINK IN BIO!")
+    # D. Rotating Pop-Up Text Overlays
     popup_text = None
     angle_pop = 45
     pos_pop = (300, 480)
@@ -160,7 +153,7 @@ def make_frame(t):
         p_scale = 1.0 + 0.12 * np.sin(2 * np.pi * t * 3.0)
         txt_img = txt_img.resize((int(850 * p_scale), int(320 * p_scale)), Image.Resampling.LANCZOS)
         
-        # 45 degree rotation
+        # Rotation
         txt_rotated = txt_img.rotate(angle_pop, expand=True, resample=Image.Resampling.BICUBIC)
         rw, rh = txt_rotated.size
         bg_canvas.paste(txt_rotated, (pos_pop[0] - rw//2, pos_pop[1] - rh//2), txt_rotated)
@@ -183,4 +176,4 @@ final_video.write_videofile(
     preset='fast'
 )
 
-print(f"✅ Hypnotic Techno Reel Rendered Successfully: {OUTPUT_VIDEO}")
+print(f"✅ Clean Dark Matte Reel Rendered Successfully: {OUTPUT_VIDEO}")
