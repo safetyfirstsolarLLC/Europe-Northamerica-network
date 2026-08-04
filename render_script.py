@@ -52,26 +52,34 @@ def main():
     square_bg.paste(product_img, ((max_d - p_w) // 2, (max_d - p_h) // 2), product_img)
     product_core = square_bg
 
-    # Clean up temporary raw data array
     del data
     gc.collect()
 
     # ==========================================
-    # 2. VOICE SYNTHESIS
+    # 2. HYPED FEMALE VOICE SYNTHESIS
     # ==========================================
-    print("--- 2. Generating Voiceover... ---", flush=True)
-    voice_text = "Stop buying plain socks! Grab your limited edition SpongeBob 3D streetwear socks today. Link in bio!"
-    VOICE = "en-US-ChristopherNeural"
+    print("--- 2. Generating High-Energy Female Voiceover... ---", flush=True)
+    
+    # Hyped, high-spunk script
+    voice_text = "Boring socks? NO WAY! 😱 Level up your fit with these crazy SpongeBob 3D drip socks! They are going FAST, hit that link in bio right now!"
+    
+    # Expressive female voice + boosted pitch & fast speed
+    FEMALE_VOICE = "en-US-AnaNeural"
 
     async def generate_voiceover():
-        communicate = edge_tts.Communicate(voice_text, VOICE, rate="+15%")
+        communicate = edge_tts.Communicate(
+            voice_text, 
+            FEMALE_VOICE, 
+            rate="+28%", 
+            pitch="+12Hz"
+        )
         await communicate.save(LOCAL_AUDIO_TTS)
 
     asyncio.run(generate_voiceover())
-    print("✅ Voiceover synthesized.", flush=True)
+    print("✅ Hyped female voiceover synthesized.", flush=True)
 
     final_audio = AudioFileClip(LOCAL_AUDIO_TTS)
-    total_duration = round(final_audio.duration + 0.8, 2)
+    total_duration = round(final_audio.duration + 0.6, 2)
 
     # ==========================================
     # 3. FRAME GENERATOR
@@ -88,9 +96,10 @@ def main():
     def make_frame(t):
         bg_canvas = Image.new("RGBA", (1080, 1920), (18, 18, 18, 255))
         
-        angle = (t * 140) % 360
-        scale = 1.0 + 0.08 * np.sin(2 * np.pi * t * 1.5)
-        target_size = (int(620 * scale), int(620 * scale))
+        # Faster rotation for extra kinetic energy
+        angle = (t * 220) % 360
+        scale = 1.0 + 0.12 * np.sin(2 * np.pi * t * 2.5)
+        target_size = (int(640 * scale), int(640 * scale))
         
         scaled_sock = product_core.resize(target_size, Image.Resampling.BILINEAR)
         rotated_sock = scaled_sock.rotate(-angle, expand=True, resample=Image.Resampling.BILINEAR)
@@ -100,33 +109,33 @@ def main():
         bg_canvas.paste(rotated_sock, offset, rotated_sock)
         
         draw = ImageDraw.Draw(bg_canvas)
-        text_bottom = "SPONGEBOB DRIP 🧽🔥\nGET YOURS NOW!"
+        text_bottom = "SPONGEBOB DRIP 🧽🔥\nGRAB YOURS NOW!"
         draw.multiline_text((540, 1600), text_bottom, fill="yellow", font=font_main, anchor="mm", align="center", stroke_width=6, stroke_fill="black")
 
         popup_text = None
         angle_pop = 45
         pos_pop = (300, 480)
 
-        if 0.3 <= t < 1.5:
-            popup_text = "OMG!"
-            angle_pop = 45
-            pos_pop = (280, 480)
-        elif 1.7 <= t < 2.9:
-            popup_text = "WOW!"
-            angle_pop = -45
-            pos_pop = (800, 480)
-        elif 3.1 <= t < 4.5:
-            popup_text = "LINK IN BIO!"
+        if 0.2 <= t < 1.2:
+            popup_text = "TOO FIRE! 🔥"
             angle_pop = 35
+            pos_pop = (300, 480)
+        elif 1.4 <= t < 2.5:
+            popup_text = "MUST HAVE! 😱"
+            angle_pop = -35
+            pos_pop = (780, 480)
+        elif 2.7 <= t < 4.2:
+            popup_text = "LINK IN BIO! 🛍️"
+            angle_pop = 25
             pos_pop = (540, 320)
 
         if popup_text:
-            txt_img = Image.new("RGBA", (850, 320), (0, 0, 0, 0))
+            txt_img = Image.new("RGBA", (880, 320), (0, 0, 0, 0))
             txt_draw = ImageDraw.Draw(txt_img)
-            txt_draw.text((425, 160), popup_text, fill="cyan", font=font_pop, anchor="mm", stroke_width=8, stroke_fill="black")
+            txt_draw.text((440, 160), popup_text, fill="cyan", font=font_pop, anchor="mm", stroke_width=8, stroke_fill="black")
             
-            p_scale = 1.0 + 0.12 * np.sin(2 * np.pi * t * 3.0)
-            txt_img = txt_img.resize((int(850 * p_scale), int(320 * p_scale)), Image.Resampling.BILINEAR)
+            p_scale = 1.0 + 0.15 * np.sin(2 * np.pi * t * 4.0)
+            txt_img = txt_img.resize((int(880 * p_scale), int(320 * p_scale)), Image.Resampling.BILINEAR)
             
             txt_rotated = txt_img.rotate(angle_pop, expand=True, resample=Image.Resampling.BILINEAR)
             rw, rh = txt_rotated.size
