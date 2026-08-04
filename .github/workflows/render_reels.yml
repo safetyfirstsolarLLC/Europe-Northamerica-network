@@ -1,7 +1,7 @@
 name: Render IG Reel Video
 
 on:
-  workflow_dispatch: # Allows manual trigger button
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -30,7 +30,6 @@ jobs:
         run: |
           pip install --upgrade pip
           pip install "pillow>=10.0.0" "moviepy==1.0.3" requests edge-tts numpy
-          pip install rembg onnxruntime
 
       - name: Execute Render Script
         run: |
