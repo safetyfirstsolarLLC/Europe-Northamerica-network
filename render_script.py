@@ -55,45 +55,37 @@ product_core = square_bg
 # ==========================================
 print("--- 2. Generating Edge-TTS Neural Voiceover & Techno Track... ---")
 
-# A. Generate High-Quality Edge-TTS Voiceover
 voice_text = "Stop buying plain socks! Grab your limited edition SpongeBob 3D streetwear socks today. Link in bio!"
-VOICE = "en-US-ChristopherNeural"  # High-energy, natural male voice
+VOICE = "en-US-ChristopherNeural"
 
 async def generate_voiceover():
     communicate = edge_tts.Communicate(voice_text, VOICE, rate="+15%")
     await communicate.save(LOCAL_AUDIO_TTS)
 
-# Execute Async TTS
 asyncio.run(generate_voiceover())
 
-# Load Neural Audio Clip
 raw_voice_clip = AudioFileClip(LOCAL_AUDIO_TTS)
 total_duration = raw_voice_clip.duration + 1.2
 
-# B. Generate 100% Royalty-Free Techno Beat in Numpy (128 BPM)
 sample_rate = 44100
 t_audio = np.linspace(0, total_duration, int(sample_rate * total_duration), False)
 
 bpm = 128
 beat_freq = bpm / 60.0
 
-# Punchy Kick drum wave
 kick_env = np.exp(-14 * ((t_audio * beat_freq) % 1.0))
 kick_wave = np.sin(2 * np.pi * (55 + 100 * kick_env) * t_audio) * kick_env
 
-# Upbeat Synth Pattern (C minor chord synth)
 synth_freqs = [261.63, 311.13, 392.00, 466.16]
 note_index = (t_audio * beat_freq * 4).astype(int) % len(synth_freqs)
 current_freqs = np.array([synth_freqs[i] for i in note_index])
 synth_env = np.exp(-10 * ((t_audio * beat_freq * 4) % 1.0))
 synth_wave = np.sin(2 * np.pi * current_freqs * t_audio) * synth_env * 0.2
 
-# Stereo Techno Track
 techno_mono = (kick_wave * 0.45 + synth_wave * 0.25)
 techno_stereo = np.vstack([techno_mono, techno_mono]).T
 techno_music_clip = AudioArrayClip(techno_stereo, fps=sample_rate).set_duration(total_duration)
 
-# Composite Voice + Techno
 final_audio = CompositeAudioClip([raw_voice_clip.volumex(1.5), techno_music_clip.volumex(0.35)])
 
 # ==========================================
@@ -102,10 +94,8 @@ final_audio = CompositeAudioClip([raw_voice_clip.volumex(1.5), techno_music_clip
 print("--- 3. Rendering video frames... ---")
 
 def make_frame(t):
-    # A. Solid Dark Modern Matte Background Canvas (1080x1920)
     bg_canvas = Image.new("RGBA", (1080, 1920), (18, 18, 18, 255))
     
-    # B. Spinning / Pulsing Product Item
     angle = (t * 140) % 360
     scale = 1.0 + 0.08 * np.sin(2 * np.pi * t * 1.5)
     target_size = (int(620 * scale), int(620 * scale))
@@ -117,7 +107,6 @@ def make_frame(t):
     offset = ((1080 - sw) // 2, (1920 - sh) // 2 - 80)
     bg_canvas.paste(rotated_sock, offset, rotated_sock)
     
-    # C. Main Text & Dynamic Popups
     draw = ImageDraw.Draw(bg_canvas)
     try:
         font_main = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 68)
@@ -126,11 +115,9 @@ def make_frame(t):
         font_main = ImageFont.load_default()
         font_pop = font_main
 
-    # Bottom Call To Action Banner
     text_bottom = "SPONGEBOB DRIP 🧽🔥\nGET YOURS NOW!"
     draw.multiline_text((540, 1600), text_bottom, fill="yellow", font=font_main, anchor="mm", align="center", stroke_width=6, stroke_fill="black")
 
-    # D. Rotating Pop-Up Text Overlays
     popup_text = None
     angle_pop = 45
     pos_pop = (300, 480)
@@ -153,11 +140,9 @@ def make_frame(t):
         txt_draw = ImageDraw.Draw(txt_img)
         txt_draw.text((425, 160), popup_text, fill="cyan", font=font_pop, anchor="mm", stroke_width=8, stroke_fill="black")
         
-        # Scale pulsation
         p_scale = 1.0 + 0.12 * np.sin(2 * np.pi * t * 3.0)
         txt_img = txt_img.resize((int(850 * p_scale), int(320 * p_scale)), Image.Resampling.LANCZOS)
         
-        # Rotation
         txt_rotated = txt_img.rotate(angle_pop, expand=True, resample=Image.Resampling.BICUBIC)
         rw, rh = txt_rotated.size
         bg_canvas.paste(txt_rotated, (pos_pop[0] - rw//2, pos_pop[1] - rh//2), txt_rotated)
