@@ -21,24 +21,26 @@ LOCAL_AUDIO_TTS = "voiceover_raw.mp3"
 OUTPUT_VIDEO = "assets/ig-media/spongebob_reel1.mp4"
 
 # ==========================================
-# 1. DOWNLOAD PRODUCT & AUTO-REMOVE BACKGROUND
+# 1. DOWNLOAD PRODUCT & AUTO-TRANSPARENCY
 # ==========================================
-print("--- 1. Downloading product image & stripping background... ---")
-r = requests.get(IMAGE_URL)
+print("--- 1. Downloading product image... ---")
+headers = {'User-Agent': 'Mozilla/5.0'}
+response = requests.get(IMAGE_URL, headers=headers)
+response.raise_for_status()
+
 with open(TEMP_RAW_IMG, 'wb') as f:
-    f.write(r.content)
+    f.write(response.content)
 
-product_img = None
+product_raw = Image.open(TEMP_RAW_IMG).convert("RGBA")
 
-try:
-    from rembg import remove
-    with open(TEMP_RAW_IMG, 'rb') as i:
-        output_data = remove(i.read())
-        product_img = Image.open(io.BytesIO(output_data)).convert("RGBA")
-    print("✅ Background removed successfully via rembg.")
-except Exception as e:
-    print(f"⚠️ rembg failed or skipped ({e}). Falling back to original image.")
-    product_img = Image.open(TEMP_RAW_IMG).convert("RGBA")
+# Fast alpha keying for clean background removal without heavy ONNX models
+data = np.array(product_raw)
+r, g, b, a = data.T
+# Mask pure/near white background
+white_areas = (r > 240) & (g > 240) & (b > 240)
+data[..., 3][white_areas.T] = 0
+
+product_img = Image.fromarray(data)
 
 # Square cutout container
 p_w, p_h = product_img.size
