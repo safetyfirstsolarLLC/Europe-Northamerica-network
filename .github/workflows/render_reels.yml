@@ -27,11 +27,10 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y ffmpeg fonts-dejavu
 
-      - name: Install Python Rendering Pipeline
+- name: Install Python Rendering Pipeline
         run: |
           pip install --upgrade pip
-          # rembg installs pillow, numpy, and onnxruntime automatically
-          pip install "moviepy==1.0.3" gTTS requests rembg onnxruntime
+          pip install "moviepy==1.0.3" requests rembg onnxruntime edge-tts numpy Pillow
 
       - name: Execute Render Script
         run: |
