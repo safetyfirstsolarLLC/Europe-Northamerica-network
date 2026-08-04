@@ -4,7 +4,7 @@ import requests
 import asyncio
 import numpy as np
 
-# Force unbuffered stdout so logs stream directly into GitHub Actions UI
+# Stream stdout immediately
 sys.stdout.reconfigure(line_buffering=True)
 
 # Patch Pillow compatibility before MoviePy imports
@@ -15,7 +15,7 @@ if not hasattr(Image, 'ANTIALIAS'):
 import edge_tts
 from moviepy.editor import VideoClip, AudioFileClip, AudioArrayClip, CompositeAudioClip
 
-# Ensure target directory exists
+# Ensure target output directory exists
 os.makedirs("assets/ig-media", exist_ok=True)
 
 IMAGE_URL = "https://raw.githubusercontent.com/safetyfirstsolarLLC/Europe-Northamerica-network/main/assets/ig-media/spongebob1%20.jpg"
@@ -40,7 +40,7 @@ except Exception as e:
 
 product_raw = Image.open(TEMP_RAW_IMG).convert("RGBA")
 
-# Fast numpy chroma keying to drop white/near-white studio backgrounds
+# NumPy chroma keying to remove white studio background
 data = np.array(product_raw)
 r_ch, g_ch, b_ch, a_ch = data.T
 white_areas = (r_ch > 235) & (g_ch > 235) & (b_ch > 235)
@@ -48,7 +48,7 @@ data[..., 3][white_areas.T] = 0
 
 product_img = Image.fromarray(data)
 
-# Square cutout container
+# Center in square transparent canvas
 p_w, p_h = product_img.size
 max_d = max(p_w, p_h)
 square_bg = Image.new("RGBA", (max_d, max_d), (0, 0, 0, 0))
