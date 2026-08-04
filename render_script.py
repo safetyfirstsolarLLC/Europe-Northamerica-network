@@ -21,7 +21,7 @@ LOCAL_AUDIO_TTS = "voiceover_raw.mp3"
 OUTPUT_VIDEO = "assets/ig-media/spongebob_reel1.mp4"
 
 # ==========================================
-# 1. DOWNLOAD PRODUCT & AUTO-TRANSPARENCY
+# 1. DOWNLOAD PRODUCT & FAST ALPHA BACKGROUND REMOVAL
 # ==========================================
 print("--- 1. Downloading product image... ---")
 headers = {'User-Agent': 'Mozilla/5.0'}
@@ -33,11 +33,10 @@ with open(TEMP_RAW_IMG, 'wb') as f:
 
 product_raw = Image.open(TEMP_RAW_IMG).convert("RGBA")
 
-# Fast alpha keying for clean background removal without heavy ONNX models
+# Fast numpy chroma keying to drop white/near-white studio backgrounds
 data = np.array(product_raw)
 r, g, b, a = data.T
-# Mask pure/near white background
-white_areas = (r > 240) & (g > 240) & (b > 240)
+white_areas = (r > 235) & (g > 235) & (b > 235)
 data[..., 3][white_areas.T] = 0
 
 product_img = Image.fromarray(data)
