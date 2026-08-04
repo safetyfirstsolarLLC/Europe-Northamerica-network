@@ -1,5 +1,6 @@
 import os
 import sys
+import gc
 import requests
 import asyncio
 import traceback
@@ -14,7 +15,7 @@ if not hasattr(Image, 'ANTIALIAS'):
     Image.ANTIALIAS = Image.Resampling.LANCZOS
 
 import edge_tts
-from moviepy.editor import VideoClip, AudioFileClip, AudioArrayClip, CompositeAudioClip
+from moviepy.editor import VideoClip, AudioFileClip
 
 os.makedirs("assets/ig-media", exist_ok=True)
 
@@ -37,7 +38,7 @@ def main():
 
     product_raw = Image.open(TEMP_RAW_IMG).convert("RGBA")
 
-    # Chroma key white removal
+    # Fast numpy background keying
     data = np.array(product_raw)
     r_ch, g_ch, b_ch, a_ch = data.T
     white_areas = (r_ch > 235) & (g_ch > 235) & (b_ch > 235)
@@ -50,6 +51,10 @@ def main():
     square_bg = Image.new("RGBA", (max_d, max_d), (0, 0, 0, 0))
     square_bg.paste(product_img, ((max_d - p_w) // 2, (max_d - p_h) // 2), product_img)
     product_core = square_bg
+
+    # Clean up temporary raw data array
+    del data
+    gc.collect()
 
     # ==========================================
     # 2. VOICE SYNTHESIS
@@ -65,28 +70,20 @@ def main():
     asyncio.run(generate_voiceover())
     print("✅ Voiceover synthesized.", flush=True)
 
-    raw_voice_clip = AudioFileClip(LOCAL_AUDIO_TTS)
-    total_duration = round(raw_voice_clip.duration + 1.0, 2)
-
-    # Safe Techno Synth Generation using int16 bounds
-    sample_rate = 44100
-    n_samples = int(sample_rate * total_duration)
-    t_audio = np.linspace(0, total_duration, n_samples, False)
-    bpm = 128
-    beat_freq = bpm / 60.0
-
-    kick_env = np.exp(-14 * ((t_audio * beat_freq) % 1.0))
-    kick_wave = np.sin(2 * np.pi * (55 + 100 * kick_env) * t_audio) * kick_env
-    techno_mono = (kick_wave * 0.3).astype(np.float32)
-    techno_stereo = np.vstack([techno_mono, techno_mono]).T
-
-    techno_music_clip = AudioArrayClip(techno_stereo, fps=sample_rate).set_duration(total_duration)
-    final_audio = CompositeAudioClip([raw_voice_clip.volumex(1.4), techno_music_clip]).set_duration(total_duration)
+    final_audio = AudioFileClip(LOCAL_AUDIO_TTS)
+    total_duration = round(final_audio.duration + 0.8, 2)
 
     # ==========================================
     # 3. FRAME GENERATOR
     # ==========================================
     print("--- 3. Rendering video frames... ---", flush=True)
+
+    try:
+        font_main = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 68)
+        font_pop = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 80)
+    except Exception:
+        font_main = ImageFont.load_default()
+        font_pop = font_main
 
     def make_frame(t):
         bg_canvas = Image.new("RGBA", (1080, 1920), (18, 18, 18, 255))
@@ -95,21 +92,14 @@ def main():
         scale = 1.0 + 0.08 * np.sin(2 * np.pi * t * 1.5)
         target_size = (int(620 * scale), int(620 * scale))
         
-        scaled_sock = product_core.resize(target_size, Image.Resampling.LANCZOS)
-        rotated_sock = scaled_sock.rotate(-angle, expand=True, resample=Image.Resampling.BICUBIC)
+        scaled_sock = product_core.resize(target_size, Image.Resampling.BILINEAR)
+        rotated_sock = scaled_sock.rotate(-angle, expand=True, resample=Image.Resampling.BILINEAR)
         
         sw, sh = rotated_sock.size
         offset = ((1080 - sw) // 2, (1920 - sh) // 2 - 80)
         bg_canvas.paste(rotated_sock, offset, rotated_sock)
         
         draw = ImageDraw.Draw(bg_canvas)
-        try:
-            font_main = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 68)
-            font_pop = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 80)
-        except Exception:
-            font_main = ImageFont.load_default()
-            font_pop = font_main
-
         text_bottom = "SPONGEBOB DRIP 🧽🔥\nGET YOURS NOW!"
         draw.multiline_text((540, 1600), text_bottom, fill="yellow", font=font_main, anchor="mm", align="center", stroke_width=6, stroke_fill="black")
 
@@ -136,13 +126,14 @@ def main():
             txt_draw.text((425, 160), popup_text, fill="cyan", font=font_pop, anchor="mm", stroke_width=8, stroke_fill="black")
             
             p_scale = 1.0 + 0.12 * np.sin(2 * np.pi * t * 3.0)
-            txt_img = txt_img.resize((int(850 * p_scale), int(320 * p_scale)), Image.Resampling.LANCZOS)
+            txt_img = txt_img.resize((int(850 * p_scale), int(320 * p_scale)), Image.Resampling.BILINEAR)
             
-            txt_rotated = txt_img.rotate(angle_pop, expand=True, resample=Image.Resampling.BICUBIC)
+            txt_rotated = txt_img.rotate(angle_pop, expand=True, resample=Image.Resampling.BILINEAR)
             rw, rh = txt_rotated.size
             bg_canvas.paste(txt_rotated, (pos_pop[0] - rw//2, pos_pop[1] - rh//2), txt_rotated)
 
-        return np.array(bg_canvas.convert("RGB"))
+        frame_array = np.array(bg_canvas.convert("RGB"))
+        return frame_array
 
     # ==========================================
     # 4. EXPORT MP4 VIDEO
@@ -157,6 +148,7 @@ def main():
         codec='libx264',
         audio_codec='aac',
         preset='ultrafast',
+        threads=2,
         logger=None
     )
     print(f"✅ Reel Rendered Successfully: {OUTPUT_VIDEO}", flush=True)
