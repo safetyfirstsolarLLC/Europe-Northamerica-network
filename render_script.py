@@ -3,18 +3,14 @@ import io
 import requests
 import asyncio
 import numpy as np
-import edge_tts
-from PIL import Image, ImageDraw, ImageFont
-from moviepy.editor import VideoClip, AudioFileClip, AudioArrayClip, CompositeAudioClip
 
-# Fix MoviePy 1.0.3 compatibility with Pillow 10+
+# Apply Pillow compatibility patch BEFORE importing Image or MoviePy
+from PIL import Image, ImageDraw, ImageFont
 if not hasattr(Image, 'ANTIALIAS'):
     Image.ANTIALIAS = Image.Resampling.LANCZOS
 
-try:
-    from rembg import remove
-except ImportError:
-    remove = None
+import edge_tts
+from moviepy.editor import VideoClip, AudioFileClip, AudioArrayClip, CompositeAudioClip
 
 os.makedirs("assets/ig-media", exist_ok=True)
 
@@ -32,15 +28,16 @@ r = requests.get(IMAGE_URL)
 with open(TEMP_RAW_IMG, 'wb') as f:
     f.write(r.content)
 
-if remove:
-    try:
-        with open(TEMP_RAW_IMG, 'rb') as i:
-            output_data = remove(i.read())
-            product_img = Image.open(io.BytesIO(output_data)).convert("RGBA")
-    except Exception as e:
-        print(f"rembg warning: {e}, using raw image")
-        product_img = Image.open(TEMP_RAW_IMG).convert("RGBA")
-else:
+product_img = None
+
+try:
+    from rembg import remove
+    with open(TEMP_RAW_IMG, 'rb') as i:
+        output_data = remove(i.read())
+        product_img = Image.open(io.BytesIO(output_data)).convert("RGBA")
+    print("✅ Background removed successfully via rembg.")
+except Exception as e:
+    print(f"⚠️ rembg failed or skipped ({e}). Falling back to original image.")
     product_img = Image.open(TEMP_RAW_IMG).convert("RGBA")
 
 # Square cutout container
@@ -161,8 +158,8 @@ final_video.write_videofile(
     fps=24,
     codec='libx264',
     audio_codec='aac',
-    threads=2,
+    threads=1,
     preset='fast'
 )
 
-print(f"✅ Clean Dark Matte Reel Rendered Successfully: {OUTPUT_VIDEO}")
+print(f"✅ Reel Rendered Successfully: {OUTPUT_VIDEO}")
