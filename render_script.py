@@ -4,7 +4,7 @@ import requests
 import asyncio
 import numpy as np
 
-# Apply Pillow compatibility patch BEFORE importing Image or MoviePy
+# Patch Pillow compatibility before MoviePy/PIL imports
 from PIL import Image, ImageDraw, ImageFont
 if not hasattr(Image, 'ANTIALIAS'):
     Image.ANTIALIAS = Image.Resampling.LANCZOS
@@ -12,31 +12,35 @@ if not hasattr(Image, 'ANTIALIAS'):
 import edge_tts
 from moviepy.editor import VideoClip, AudioFileClip, AudioArrayClip, CompositeAudioClip
 
+# Ensure local output directory exists
 os.makedirs("assets/ig-media", exist_ok=True)
 
-# Sources & Output
 IMAGE_URL = "https://raw.githubusercontent.com/safetyfirstsolarLLC/Europe-Northamerica-network/main/assets/ig-media/spongebob1%20.jpg"
 TEMP_RAW_IMG = "raw_input_product.jpg"
 LOCAL_AUDIO_TTS = "voiceover_raw.mp3"
 OUTPUT_VIDEO = "assets/ig-media/spongebob_reel1.mp4"
 
 # ==========================================
-# 1. DOWNLOAD PRODUCT & FAST ALPHA BACKGROUND REMOVAL
+# 1. DOWNLOAD PRODUCT & FAST ALPHA REMOVAL
 # ==========================================
 print("--- 1. Downloading product image... ---")
-headers = {'User-Agent': 'Mozilla/5.0'}
-response = requests.get(IMAGE_URL, headers=headers)
-response.raise_for_status()
-
-with open(TEMP_RAW_IMG, 'wb') as f:
-    f.write(response.content)
+try:
+    headers = {'User-Agent': 'Mozilla/5.0'}
+    r = requests.get(IMAGE_URL, headers=headers, timeout=15)
+    r.raise_for_status()
+    with open(TEMP_RAW_IMG, 'wb') as f:
+        f.write(r.content)
+    print("✅ Image downloaded successfully.")
+except Exception as e:
+    print(f"❌ Failed to download image from {IMAGE_URL}: {e}")
+    raise SystemExit(1)
 
 product_raw = Image.open(TEMP_RAW_IMG).convert("RGBA")
 
 # Fast numpy chroma keying to drop white/near-white studio backgrounds
 data = np.array(product_raw)
-r, g, b, a = data.T
-white_areas = (r > 235) & (g > 235) & (b > 235)
+r_ch, g_ch, b_ch, a_ch = data.T
+white_areas = (r_ch > 235) & (g_ch > 235) & (b_ch > 235)
 data[..., 3][white_areas.T] = 0
 
 product_img = Image.fromarray(data)
@@ -49,9 +53,9 @@ square_bg.paste(product_img, ((max_d - p_w) // 2, (max_d - p_h) // 2), product_i
 product_core = square_bg
 
 # ==========================================
-# 2. NEURAL VOICE & TECHNO MUSIC GENERATOR
+# 2. VOICE & MUSIC SYNTHESIS
 # ==========================================
-print("--- 2. Generating Edge-TTS Neural Voiceover & Techno Track... ---")
+print("--- 2. Generating Voiceover & Techno Track... ---")
 
 voice_text = "Stop buying plain socks! Grab your limited edition SpongeBob 3D streetwear socks today. Link in bio!"
 VOICE = "en-US-ChristopherNeural"
@@ -60,7 +64,12 @@ async def generate_voiceover():
     communicate = edge_tts.Communicate(voice_text, VOICE, rate="+15%")
     await communicate.save(LOCAL_AUDIO_TTS)
 
-asyncio.run(generate_voiceover())
+try:
+    asyncio.run(generate_voiceover())
+    print("✅ Voiceover synthesized.")
+except Exception as e:
+    print(f"❌ Voiceover synthesis failed: {e}")
+    raise SystemExit(1)
 
 raw_voice_clip = AudioFileClip(LOCAL_AUDIO_TTS)
 total_duration = raw_voice_clip.duration + 1.2
@@ -87,7 +96,7 @@ techno_music_clip = AudioArrayClip(techno_stereo, fps=sample_rate).set_duration(
 final_audio = CompositeAudioClip([raw_voice_clip.volumex(1.5), techno_music_clip.volumex(0.35)])
 
 # ==========================================
-# 3. SOLID CLEAN BACKGROUND & POPUP TEXT GENERATOR
+# 3. VIDEO RENDER
 # ==========================================
 print("--- 3. Rendering video frames... ---")
 
@@ -148,7 +157,7 @@ def make_frame(t):
     return np.array(bg_canvas.convert("RGB"))
 
 # ==========================================
-# 4. EXPORT FINAL VIDEO
+# 4. EXPORT
 # ==========================================
 print("--- 4. Exporting MP4 video... ---")
 video_clip = VideoClip(make_frame, duration=total_duration)
